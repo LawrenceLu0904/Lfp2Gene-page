@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lfp2Gene — Decoding local gene expression from Neuropixels LFP</title>
+  <meta name="description" content="Predicting local cell-type composition and gene expression around Neuropixels LFP channels using self-supervised representations and spatial transcriptomics.">
+
+  <!-- Bulma (loads fine on a hosted page; visitors have internet) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ============================ HERO ============================ -->
+<section class="hero is-medium hero-head">
+  <div class="hero-body">
+    <div class="container has-text-centered">
+      <h1 class="title is-1 brand">Lfp2Gene</h1>
+      <!-- TODO(prose): finalize subtitle -->
+      <p class="subtitle is-4 mt-3">
+        Decoding local gene expression and cell-type composition<br>
+        from Neuropixels local field potentials
+      </p>
+
+      <!-- TODO(prose): authors + affiliations. Fill co-authors/advisor. -->
+      <p class="authors mt-5">
+        <a href="#">Ping-Jung (Lawrence) Lu</a><sup>1</sup>,
+        <a href="#">Advisor Name</a><sup>1</sup>,
+        <span class="has-text-grey">&hellip;</span>
+      </p>
+      <p class="affil mt-2"><sup>1</sup>New York University</p>
+
+      <!-- Quick links -->
+      <div class="buttons is-centered mt-5">
+        <!-- TODO(link): arXiv/biorxiv when posted -->
+        <a class="button is-dark is-rounded" href="#" aria-disabled="true">
+          <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Paper (soon)</span>
+        </a>
+        <a class="button is-dark is-rounded" href="https://github.com/LawrenceLu0904/Lfp2Gene">
+          <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
+        </a>
+        <a class="button is-dark is-rounded" href="#explorer">
+          <span class="icon"><i class="fas fa-chart-scatter"></i></span><span>Interactive explorer</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ NAV (sticky TOC) ============================ -->
+<nav class="toc" id="toc">
+  <div class="container">
+    <a href="#abstract">Abstract</a>
+    <a href="#data">Data &amp; bridge</a>
+    <a href="#method">Method</a>
+    <a href="#results">Results</a>
+    <a href="#ceiling">Ceiling</a>
+    <a href="#explorer">Explorer</a>
+    <a href="#bibtex">Cite</a>
+  </div>
+</nav>
+
+<!-- ============================ ABSTRACT ============================ -->
+<section class="section" id="abstract">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Abstract</h2>
+    <div class="content is-medium">
+      <!-- TODO(prose): tighten to a final abstract. This is an accurate first draft. -->
+      <p>
+        Local field potentials (LFP) recorded by Neuropixels probes are routinely
+        treated as a coarse signal of population activity. We ask whether the LFP
+        also carries a signature of the <em>molecular</em> composition of the tissue
+        around each electrode. Using the Allen Common Coordinate Framework (CCFv3)
+        as a bridge, we link IBL Brain-Wide-Map LFP channels to spatial
+        transcriptomics (Zhuang and Allen WMB MERFISH) and train a small probe on
+        <strong>frozen, self-supervised wav2vec2 embeddings</strong> of the LFP to
+        predict the per-channel gene expression and cell-type composition within a
+        400&nbsp;µm sphere.
+      </p>
+      <p>
+        Across 34 held-out animals, the model recovers the <strong>regional
+        molecular signature</strong> strongly (which gene marks which region,
+        r&nbsp;&approx;&nbsp;0.96) but tracks <strong>within-region fine
+        structure</strong> only weakly (r&nbsp;&approx;&nbsp;0.18&ndash;0.24). To
+        decide whether that gap is a <em>data-noise</em> limit or a
+        <em>model/modality</em> limit, we measure an <strong>inter-brain
+        ceiling</strong>: how well one biological replicate brain predicts another by
+        direct atlas lookup. The within-region signal is highly reproducible across
+        brains (ceiling 0.49&ndash;0.84), while the LFP model captures only
+        ~16% of it &mdash; locating the bottleneck in the <em>features/modality</em>,
+        not the ground truth.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ DATA & BRIDGE ============================ -->
+<section class="section has-background-light" id="data">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Data &amp; the CCF bridge</h2>
+    <p class="content is-medium">
+      The LFP side and the molecular side are never recorded in the same animal.
+      We register both into <strong>CCFv3</strong> and aggregate every MERFISH cell
+      within a <strong>400&nbsp;µm sphere</strong> of each electrode's CCF location
+      (the registration error, 150&ndash;250&nbsp;µm, sets the finest usable radius).
+    </p>
+
+    <div class="columns is-vcentered mt-4">
+      <div class="column is-half">
+        <figure class="image">
+          <img src="assets/figures/sphere_on_atlas.png" alt="400 µm aggregation sphere on Allen atlas slices">
+        </figure>
+        <p class="caption">400&nbsp;µm aggregation sphere on real Allen atlas slices.</p>
+      </div>
+      <div class="column is-half">
+        <table class="table is-fullwidth is-striped">
+          <thead><tr><th>Source</th><th>What</th><th>Scale</th></tr></thead>
+          <tbody>
+            <tr><td><strong>IBL BWM</strong> (LFP)</td><td>Neuropixels probes</td><td>139 animals · 212K channels<br><span class="has-text-grey">34 held-out test</span></td></tr>
+            <tr><td><strong>Zhuang</strong> MERFISH</td><td>1,122-gene panel</td><td>4 brains, left hemi (coronal + sagittal)</td></tr>
+            <tr><td><strong>Allen WMB</strong> MERFISH</td><td>550-gene panel</td><td>1 brain, full · 59 coronal sections</td></tr>
+            <tr><td><strong>Bridge</strong></td><td>CCFv3 lookup</td><td>400&nbsp;µm sphere · 200&nbsp;µm cubes</td></tr>
+          </tbody>
+        </table>
+        <p class="caption">
+          CCF alignment verified: 54% region match, sub-10&nbsp;µm offset. Both atlases
+          share the Yao cell-type taxonomy; gene panels overlap on 477 shared genes.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ METHOD ============================ -->
+<section class="section" id="method">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Method</h2>
+
+    <!-- TODO(figure): drop a clean pipeline diagram here (LFP → frozen w2v2 → MLP → genes). -->
+    <div class="pipeline box">
+      <div class="step"><span class="tag is-dark">1</span> Raw LFP window<br><small>1.25&nbsp;kHz, per channel</small></div>
+      <span class="arrow">&rarr;</span>
+      <div class="step"><span class="tag" style="background:#882255;color:#fff">2</span> Frozen wav2vec2<br><small>75K&nbsp;CD&nbsp;&sigma;=500 · 768-d · SSL-only</small></div>
+      <span class="arrow">&rarr;</span>
+      <div class="step"><span class="tag is-dark">3</span> MLP probe<br><small>768&rarr;256&rarr;GELU&rarr;n<sub>genes</sub></small></div>
+      <span class="arrow">&rarr;</span>
+      <div class="step"><span class="tag is-dark">4</span> Gene / cell-type<br><small>400&nbsp;µm sphere target</small></div>
+    </div>
+
+    <div class="content is-medium mt-5">
+      <p>
+        The encoder is a wav2vec2 model pretrained <strong>self-supervised on LFP
+        alone</strong> &mdash; it never sees coordinates, region labels, or cell types,
+        so there is no leakage from the atlas into the features. We freeze it and
+        train only a small MLP probe on its 768-d embeddings. The split is by
+        <strong>animal</strong> (105 train+val / 34 test subjects), matching the
+        localization model's held-out set, so reported numbers are subject-clean.
+      </p>
+      <p class="notification is-warning is-light">
+        <strong>Two correlation axes &mdash; don't conflate them (Simpson's paradox).</strong>
+        Pooling across genes inflates correlation. <em>Between-gene</em> (which gene
+        marks which region) is the easy axis, r&nbsp;&approx;&nbsp;0.96.
+        <em>Within-gene</em> (one gene's spatial pattern, conditioned on gene
+        identity) is the honest fine-scale number, r&nbsp;&approx;&nbsp;0.18&ndash;0.24.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ RESULTS ============================ -->
+<section class="section has-background-light" id="results">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Results</h2>
+    <p class="content is-medium has-text-centered">Held-out test pool (34 animals · ~33,633 channels · 75 sessions).</p>
+
+    <div class="columns is-multiline mt-4">
+      <div class="column is-3"><div class="stat box"><div class="num">0.96</div><div class="lab">Regional signature r<br><small>which gene marks which region</small></div></div></div>
+      <div class="column is-3"><div class="stat box"><div class="num">0.24</div><div class="lab">Within-gene tracking r<br><small>Zhuang · WMB 0.18</small></div></div></div>
+      <div class="column is-3"><div class="stat box"><div class="num">0.55</div><div class="lab">Global per-gene r<br><small>median over genes</small></div></div></div>
+      <div class="column is-3"><div class="stat box"><div class="num">0.43&rarr;0.22</div><div class="lab">Cell-type FVE<br><small>neurotransmitter &rarr; cluster</small></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CEILING ============================ -->
+<section class="section" id="ceiling">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">How far is the ceiling?</h2>
+    <p class="content is-medium">
+      Is the weak within-region tracking a property of the data, or of the model?
+      We answer with an <strong>inter-brain ceiling</strong>: predict one brain's
+      gene field from another biological replicate by <em>direct atlas lookup</em>
+      (no trained model). Three ceilings &mdash; same-slice (A), cross-slice (B),
+      cross-platform (C) &mdash; across four aggregation radii.
+    </p>
+
+    <figure class="image mt-4">
+      <img src="assets/figures/ceiling.png" alt="Inter-brain ceiling vs LFP model across radii">
+    </figure>
+    <p class="caption">
+      Within-region gene signal is reproducible across brains (ceiling
+      0.49&ndash;0.84), but the LFP model reaches only ~0.08&ndash;0.12 &mdash; a
+      ~6&times; gap at 400&nbsp;µm. The bottleneck is the <strong>modality/features</strong>
+      (LFP can't resolve sub-region position), not ground-truth noise. Headroom is
+      real: AP-band features and joint training are the levers.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ INTERACTIVE EXPLORER ============================ -->
+<section class="section has-background-light" id="explorer">
+  <div class="container is-max-widescreen">
+    <h2 class="title is-3 has-text-centered">Interactive explorer</h2>
+    <p class="content is-medium has-text-centered">
+      One brain drives everything. Pick a <strong>cube size</strong> and click a
+      region on the 3D brain to update the three obs-vs-pred scatters
+      (<strong>floor</strong> / <strong>model</strong> / <strong>ceiling</strong>) and
+      the four reconstruction heatmaps &mdash; per gene, per CCF depth.
+    </p>
+
+    <p class="has-text-centered mb-4">
+      <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
+         href="assets/interactive/explorer_zhuang.html" target="_blank" rel="noopener">
+        <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
+        <span>Open the explorer full-screen</span>
+      </a>
+    </p>
+
+    <div class="explorer-embed">
+      <iframe src="assets/interactive/explorer_zhuang.html"
+              title="Lfp2Gene interactive explorer" loading="lazy"></iframe>
+    </div>
+    <p class="caption">
+      <i class="fas fa-circle-info"></i>
+      3D brain (grey = whole brain · colored = evaluable regions / probe coverage) +
+      3 obs-vs-pred scatters + 4 reconstruction heatmaps, all linked. Data is fetched
+      per cube-size on demand; slimmed for fast loading. Best on a wide screen.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ BIBTEX ============================ -->
+<section class="section" id="bibtex">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Citation</h2>
+    <!-- TODO(prose): fill once there's a preprint -->
+    <pre class="bibtex">@misc{lu_lfp2gene,
+  title  = {Lfp2Gene: Decoding local gene expression from Neuropixels LFP},
+  author = {Lu, Ping-Jung and others},
+  year   = {2026},
+  note   = {Work in progress}
+}</pre>
+  </div>
+</section>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="footer">
+  <div class="content has-text-centered">
+    <p>
+      Built with the academic project-page style. New York University.
+      Source on <a href="https://github.com/LawrenceLu0904/Lfp2Gene">GitHub</a>.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
