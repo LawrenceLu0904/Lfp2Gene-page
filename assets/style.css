@@ -68,9 +68,12 @@ code, pre, .bibtex { font-family: 'JetBrains Mono', monospace; }
 .explorer-embed {
   border: 1px solid #e4e4e4; border-radius: 10px; overflow: hidden;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06); background: #fff;
+  /* full-bleed: span the page width instead of the narrow text column */
+  width: 96vw; position: relative; left: 50%; transform: translateX(-50%);
 }
-.explorer-embed iframe { width: 100%; height: 1450px; border: 0; display: block; }
-@media (max-width: 768px) { .explorer-embed iframe { height: 1650px; } }
+/* height is auto-managed by JS (postMessage) to fit content — these are just pre-load fallbacks */
+.explorer-embed iframe { width: 100%; height: 2200px; border: 0; display: block; }
+@media (max-width: 768px) { .explorer-embed iframe { height: 2600px; } }
 
 /* ---- bibtex ---- */
 .bibtex {

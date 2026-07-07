@@ -226,7 +226,7 @@
     </p>
 
     <div class="explorer-embed">
-      <iframe src="assets/interactive/explorer_zhuang.html"
+      <iframe id="explorer-iframe" src="assets/interactive/explorer_zhuang.html"
               title="Lfp2Gene interactive explorer" loading="lazy"></iframe>
     </div>
     <p class="caption">
@@ -262,5 +262,15 @@
   </div>
 </footer>
 
+<script>
+  // resize the explorer iframe to its content height so it never scrolls internally
+  window.addEventListener('message', function(e){
+    var d = e.data;
+    if(d && d.type === 'explorerHeight' && d.height){
+      var f = document.getElementById('explorer-iframe');
+      if(f){ f.style.height = (d.height + 24) + 'px'; }
+    }
+  });
+</script>
 </body>
 </html>
