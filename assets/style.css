@@ -35,11 +35,31 @@ code, pre, .bibtex { font-family: 'JetBrains Mono', monospace; }
   border-bottom: 1px solid #eee;
 }
 .toc .container { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; padding: 0.7rem 0; }
-.toc a { color: #555; font-weight: 500; font-size: 0.95rem; }
+.toc a {
+  color: #555; font-weight: 500; font-size: 0.95rem;
+  padding-bottom: 2px; border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
 .toc a:hover { color: var(--wine); }
+.toc a.active { color: var(--wine); border-bottom-color: var(--wine); }
 
 /* ---- section titles ---- */
-.section .title.is-3 { letter-spacing: -0.01em; margin-bottom: 1.5rem; }
+.section { padding-top: 3.5rem; padding-bottom: 3.5rem; }
+/* offset anchor jumps so the sticky TOC never covers the heading it scrolls to */
+section[id] { scroll-margin-top: 3.75rem; }
+.section .title.is-3 {
+  letter-spacing: -0.01em;
+  margin-bottom: 1.6rem;
+  position: relative;
+  padding-bottom: 0.65rem;
+}
+/* short wine rule under each section heading — ties every section to the brand */
+.section .title.is-3::after {
+  content: "";
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 44px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--wine), #c44b7e);
+}
 .caption { color: #777; font-size: 0.9rem; margin-top: 0.6rem; text-align: center; }
 
 /* ---- method pipeline ---- */
@@ -55,8 +75,18 @@ code, pre, .bibtex { font-family: 'JetBrains Mono', monospace; }
 .pipeline .arrow { color: var(--wine); font-size: 1.4rem; font-weight: 700; }
 
 /* ---- result stat cards ---- */
-.stat { text-align: center; height: 100%; }
-.stat .num { font-size: 2.2rem; font-weight: 800; color: var(--wine); line-height: 1.1; }
+.stat {
+  text-align: center; height: 100%;
+  display: flex; flex-direction: column; justify-content: center;
+  border-top: 3px solid var(--wine);
+  transition: box-shadow .15s, transform .15s;
+}
+.stat:hover { box-shadow: 0 8px 24px rgba(136,34,85,0.12); transform: translateY(-2px); }
+.stat .num {
+  font-size: clamp(1.7rem, 4.2vw, 2.2rem);   /* long values (0.43→0.22) shrink instead of wrapping */
+  font-weight: 800; color: var(--wine); line-height: 1.1;
+  white-space: nowrap;
+}
 .stat .lab { color: #555; margin-top: 0.4rem; }
 .stat .lab small { color: #999; }
 
@@ -74,6 +104,12 @@ code, pre, .bibtex { font-family: 'JetBrains Mono', monospace; }
 /* height is auto-managed by JS (postMessage) to fit content — these are just pre-load fallbacks */
 .explorer-embed iframe { width: 100%; height: 2200px; border: 0; display: block; }
 @media (max-width: 768px) { .explorer-embed iframe { height: 2600px; } }
+
+/* ---- soft-disabled button (e.g. "Paper (soon)") ---- */
+.button.is-soft-disabled {
+  background: #e9e9ec; color: #9a9aa2; cursor: default; pointer-events: none;
+  box-shadow: none;
+}
 
 /* ---- bibtex ---- */
 .bibtex {

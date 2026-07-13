@@ -32,14 +32,14 @@
       <!-- Quick links -->
       <div class="buttons is-centered mt-5">
         <!-- TODO(link): arXiv/biorxiv when posted -->
-        <a class="button is-dark is-rounded" href="#" aria-disabled="true">
+        <a class="button is-rounded is-soft-disabled" aria-disabled="true" tabindex="-1">
           <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Paper (soon)</span>
         </a>
         <a class="button is-dark is-rounded" href="https://github.com/LawrenceLu0904/Lfp2Gene">
           <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
         </a>
         <a class="button is-dark is-rounded" href="#explorer">
-          <span class="icon"><i class="fas fa-chart-scatter"></i></span><span>Interactive explorer</span>
+          <span class="icon"><i class="fas fa-brain"></i></span><span>Interactive explorer</span>
         </a>
       </div>
     </div>
@@ -271,6 +271,30 @@
       if(f){ f.style.height = (d.height + 24) + 'px'; }
     }
   });
+
+  // scroll-spy: highlight the TOC link for whichever section is in view
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var map = {};
+    links.forEach(function(a){
+      var id = a.getAttribute('href').slice(1);
+      var sec = document.getElementById(id);
+      if(sec) map[id] = a;
+    });
+    var sections = Object.keys(map).map(function(id){ return document.getElementById(id); });
+    if(!('IntersectionObserver' in window) || !sections.length) return;
+    var current = null;
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          if(current) current.classList.remove('active');
+          current = map[en.target.id];
+          if(current) current.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+    sections.forEach(function(s){ obs.observe(s); });
+  })();
 </script>
 </body>
 </html>
