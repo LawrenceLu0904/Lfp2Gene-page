@@ -35,10 +35,10 @@
         <a class="button is-rounded is-soft-disabled" aria-disabled="true" tabindex="-1">
           <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Paper (soon)</span>
         </a>
-        <a class="button is-dark is-rounded" href="https://github.com/LawrenceLu0904/Lfp2Gene">
+        <a class="button btn-plain is-rounded" href="https://github.com/LawrenceLu0904/Lfp2Gene">
           <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
         </a>
-        <a class="button is-dark is-rounded" href="#explorer">
+        <a class="button btn-plain is-rounded" href="#explorer">
           <span class="icon"><i class="fas fa-brain"></i></span><span>Interactive explorer</span>
         </a>
       </div>
@@ -137,13 +137,13 @@
 
     <!-- TODO(figure): drop a clean pipeline diagram here (LFP → frozen w2v2 → MLP → genes). -->
     <div class="pipeline box">
-      <div class="step"><span class="tag is-dark">1</span> Raw LFP window<br><small>1.25&nbsp;kHz, per channel</small></div>
+      <div class="step"><span class="tag is-light">1</span> Raw LFP window<br><small>1.25&nbsp;kHz, per channel</small></div>
       <span class="arrow">&rarr;</span>
       <div class="step"><span class="tag" style="background:#882255;color:#fff">2</span> Frozen wav2vec2<br><small>75K&nbsp;CD&nbsp;&sigma;=500 · 768-d · SSL-only</small></div>
       <span class="arrow">&rarr;</span>
-      <div class="step"><span class="tag is-dark">3</span> MLP probe<br><small>768&rarr;256&rarr;GELU&rarr;n<sub>genes</sub></small></div>
+      <div class="step"><span class="tag is-light">3</span> MLP probe<br><small>768&rarr;256&rarr;GELU&rarr;n<sub>genes</sub></small></div>
       <span class="arrow">&rarr;</span>
-      <div class="step"><span class="tag is-dark">4</span> Gene / cell-type<br><small>400&nbsp;µm sphere target</small></div>
+      <div class="step"><span class="tag is-light">4</span> Gene / cell-type<br><small>400&nbsp;µm sphere target</small></div>
     </div>
 
     <div class="content is-medium mt-5">
