@@ -128,3 +128,31 @@ figure.image img { border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); 
   .pipeline { flex-direction: column; }
   .pipeline .arrow { transform: rotate(90deg); }
 }
+
+/* ---- light/dark background toggle ---- */
+.theme-toggle {
+  position: fixed; top: 0.75rem; right: 0.9rem; z-index: 60;
+  width: 2.4rem; height: 2.4rem; border-radius: 50%;
+  border: 1px solid #dcdcdc; background: #fff; color: var(--ink);
+  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.theme-toggle:hover { border-color: var(--wine); color: var(--wine); }
+
+/* ---- dark theme: keep only the custom (non-Bulma) elements readable; Bulma 1.x themes the rest ---- */
+[data-theme=dark] { --ink: #e9e9e9; }
+[data-theme=dark] .hero-head { background: linear-gradient(180deg,#141414 0%,#1c1c1c 100%); }
+[data-theme=dark] .toc { background: rgba(18,18,18,0.92); border-bottom-color: #333; }
+[data-theme=dark] .toc a { color: #b5b5b5; }
+[data-theme=dark] .affil { color: #999; }
+[data-theme=dark] .authors a { border-bottom-color: #444; }
+[data-theme=dark] .pipeline .step { background: #1e1e1e; border-color: #3a3a3a; }
+[data-theme=dark] .pipeline .step small { color: #aaa; }
+[data-theme=dark] .stat .lab { color: #bbb; }
+[data-theme=dark] .stat .lab small { color: #888; }
+[data-theme=dark] .caption { color: #9a9a9a; }
+[data-theme=dark] .btn-plain { background: #1e1e1e; border-color: #444; }
+[data-theme=dark] .theme-toggle { background: #1e1e1e; border-color: #444; }
+[data-theme=dark] .bibtex { background: #0f0f0f; color: #e8e8e8; border-color: #333; }
+[data-theme=dark] .explorer-embed { background: #1b1b1b; border-color: #333; box-shadow: 0 2px 16px rgba(0,0,0,0.4); }

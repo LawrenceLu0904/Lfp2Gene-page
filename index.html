@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,6 +14,11 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+
+<!-- light/dark background toggle (defaults to light) -->
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark background" title="Toggle light/dark background">
+  <i class="fas fa-moon"></i>
+</button>
 
 <!-- ============================ HERO ============================ -->
 <section class="hero is-medium hero-head">
@@ -263,6 +268,21 @@
 </footer>
 
 <script>
+  // light/dark background toggle — defaults to LIGHT (overrides Bulma's prefers-color-scheme auto-dark)
+  (function(){
+    var root = document.documentElement, btn = document.getElementById('theme-toggle');
+    function apply(t){
+      root.setAttribute('data-theme', t);
+      btn.innerHTML = (t === 'dark') ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+      try{ localStorage.setItem('lfp2gene-theme', t); }catch(e){}
+    }
+    var saved; try{ saved = localStorage.getItem('lfp2gene-theme'); }catch(e){}
+    apply(saved === 'dark' ? 'dark' : 'light');
+    btn.addEventListener('click', function(){
+      apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  })();
+
   // resize the explorer iframe to its content height so it never scrolls internally
   window.addEventListener('message', function(e){
     var d = e.data;
