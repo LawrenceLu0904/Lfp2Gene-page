@@ -4,3 +4,4 @@
 # permanently on every re-export.
 probes-payload.tar.gz
 assets/interactive/data/probes/
+upload_payload.sh
