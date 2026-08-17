@@ -1,0 +1,6 @@
+# The probe-explorer payload is shipped as a Release asset and pulled in by
+# .github/workflows/pages.yml at deploy time, NOT committed: it is ~156 MB of
+# PNG rasters that do not delta-compress, so committing it would grow .git
+# permanently on every re-export.
+probes-payload.tar.gz
+assets/interactive/data/probes/

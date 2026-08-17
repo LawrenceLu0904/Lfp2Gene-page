@@ -1,0 +1,76 @@
+# Deploy the site to GitHub Pages, pulling the probe-explorer payload from a
+# Release asset instead of from git.
+#
+# Why: the payload is ~156 MB of PNG rasters. PNGs do not delta-compress, so
+# committing them would add that to .git permanently and every future re-export
+# would add it again. Release assets live outside git history, so the repo stays
+# at its current size no matter how many times the payload is regenerated.
+#
+# ONE-TIME SETUP (see also: repo Settings -> Pages -> Source: GitHub Actions)
+#   gh release create probe-data-v1 probes-payload.tar.gz \
+#       --title "Probe explorer payload" \
+#       --notes "101 held-out probes; regenerate with lab/2026-08-11_gene_channels_time/export_site_probes.py"
+#
+# TO UPDATE THE PAYLOAD later, replace the asset in place -- the tag stays put,
+# so this workflow needs no edit:
+#   gh release upload probe-data-v1 probes-payload.tar.gz --clobber
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch probe payload from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAYLOAD_TAG: probe-data-v1
+        run: |
+          set -euo pipefail
+          gh release download "$PAYLOAD_TAG" \
+             --repo "$GITHUB_REPOSITORY" \
+             --pattern 'probes-payload.tar.gz' \
+             --output payload.tar.gz
+          mkdir -p assets/interactive/data
+          tar -xzf payload.tar.gz -C assets/interactive/data
+          rm payload.tar.gz
+
+      - name: Verify the payload actually landed
+        run: |
+          set -euo pipefail
+          # Fail the build rather than publish an explorer that renders an empty
+          # page -- a silently-missing payload looks identical to a working
+          # deploy until someone clicks the section.
+          test -f assets/interactive/data/probes/index.json
+          n=$(python3 -c "import json;print(len(json.load(open('assets/interactive/data/probes/index.json'))['probes']))")
+          echo "probe payloads present: $n"
+          test "$n" -gt 0
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
