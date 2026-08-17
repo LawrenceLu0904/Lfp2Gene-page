@@ -393,6 +393,18 @@ function paint(){
   }
 }
 
+/* The parent page sizes our iframe from this message, so it never scrolls
+   internally. Only post on a real change: the parent's resize feeds back into
+   our layout, and posting unconditionally would oscillate. */
+let lastPosted = 0;
+function postHeight(){
+  if(window.parent === window){ return; }
+  const h = Math.ceil(document.documentElement.scrollHeight);
+  if(Math.abs(h - lastPosted) < 6){ return; }
+  lastPosted = h;
+  window.parent.postMessage({type:"explorerHeight", height:h}, "*");
+}
+
 function layout(){
   if(!S.meta){ return; }
   // measure the CELL, not the canvas: the canvas is width:100% of #predwrap, so
@@ -400,6 +412,7 @@ function layout(){
   const w = el("predwrap").clientWidth;
   S.predW = Math.max(240, Math.round(w));
   paint();
+  requestAnimationFrame(postHeight);
 }
 
 /* ---------- hover -------------------------------------------------------- */
@@ -611,6 +624,9 @@ async function boot(){
   window.addEventListener("resize", function(){
     clearTimeout(rt);
     rt = setTimeout(layout, 120);
+  });
+  window.addEventListener("load", function(){
+    requestAnimationFrame(postHeight);
   });
 
   try{

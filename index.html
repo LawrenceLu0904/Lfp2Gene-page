@@ -60,7 +60,6 @@
     <a href="#results">Results</a>
     <a href="#ceiling">Ceiling</a>
     <a href="#explorer">Explorer</a>
-    <a href="#probes">Probes</a>
     <a href="#bibtex">Cite</a>
   </div>
 </nav>
@@ -217,67 +216,83 @@
   <div class="container is-max-widescreen">
     <h2 class="title is-3 has-text-centered">Interactive explorer</h2>
     <p class="content is-medium has-text-centered">
-      One brain drives everything. Pick a <strong>cube size</strong> and click a
-      region on the 3D brain to update the three obs-vs-pred scatters
-      (<strong>floor</strong> / <strong>model</strong> / <strong>ceiling</strong>) and
-      the four reconstruction heatmaps &mdash; per gene, per CCF depth.
+      Two views of the same model. <strong>Atlas view</strong> asks how well the
+      prediction reconstructs each region across the brain;
+      <strong>along a single probe</strong> follows one Neuropixels insertion down
+      through the tissue and shows what it predicts, window by window.
     </p>
 
-    <p class="has-text-centered mb-4">
-      <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
-         href="assets/interactive/explorer_zhuang.html?v=20260713c" target="_blank" rel="noopener">
-        <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
-        <span>Open the explorer full-screen</span>
-      </a>
-    </p>
-
-    <div class="explorer-embed">
-      <iframe id="explorer-iframe" src="assets/interactive/explorer_zhuang.html?v=20260713c"
-              title="Lfp2Gene interactive explorer" loading="lazy"></iframe>
+    <div class="tabs is-centered is-boxed explorer-tabs" id="explorer-tabs">
+      <ul>
+        <li class="is-active" data-tab="atlas"><a>Atlas view</a></li>
+        <li data-tab="probe"><a>Along a single probe</a></li>
+      </ul>
     </div>
-    <p class="caption">
-      <i class="fas fa-circle-info"></i>
-      3D brain (grey = whole brain · colored = evaluable regions / probe coverage) +
-      3 obs-vs-pred scatters + 4 reconstruction heatmaps, all linked. Data is fetched
-      per cube-size on demand; slimmed for fast loading. Best on a wide screen.
-    </p>
-  </div>
-</section>
 
-<!-- ============================ PROBE EXPLORER ============================ -->
-<section class="section" id="probes">
-  <div class="container is-max-widescreen">
-    <h2 class="title is-3 has-text-centered">Along a single probe</h2>
-    <p class="content is-medium has-text-centered">
-      The explorer above works in atlas space. This one works in
-      <strong>recording space</strong>: pick one Neuropixels insertion and follow
-      it down through the brain, with the gene expression predicted from its LFP
-      for <strong>every 3&nbsp;second window</strong> beside it. Hover a cell to
-      light up the same channel on the depth key, on the ground truth, and on the
-      probe track in the section.
-    </p>
+    <!-- ---- pane: atlas ---- -->
+    <div class="explorer-pane" data-tab="atlas">
+      <p class="content is-medium has-text-centered">
+        One brain drives everything. Pick a <strong>cube size</strong> and click a
+        region on the 3D brain to update the three obs-vs-pred scatters
+        (<strong>floor</strong> / <strong>model</strong> / <strong>ceiling</strong>) and
+        the four reconstruction heatmaps &mdash; per gene, per CCF depth.
+      </p>
 
-    <p class="has-text-centered mb-4">
-      <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
-         href="assets/interactive/explorer_probe.html" target="_blank" rel="noopener">
-        <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
-        <span>Open the probe explorer full-screen</span>
-      </a>
-    </p>
+      <p class="has-text-centered mb-4">
+        <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
+           href="assets/interactive/explorer_zhuang.html?v=20260713c" target="_blank" rel="noopener">
+          <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
+          <span>Open full-screen</span>
+        </a>
+      </p>
 
-    <div class="explorer-embed">
-      <iframe id="probe-iframe" src="assets/interactive/explorer_probe.html"
-              title="Lfp2Gene probe explorer" loading="lazy"></iframe>
+      <div class="explorer-embed">
+        <iframe id="explorer-iframe" src="assets/interactive/explorer_zhuang.html?v=20260713c"
+                title="Lfp2Gene interactive explorer" loading="lazy"></iframe>
+      </div>
+      <p class="caption">
+        <i class="fas fa-circle-info"></i>
+        3D brain (grey = whole brain &middot; colored = evaluable regions / probe coverage) +
+        3 obs-vs-pred scatters + 4 reconstruction heatmaps, all linked. Data is fetched
+        per cube-size on demand; slimmed for fast loading. Best on a wide screen.
+      </p>
     </div>
-    <p class="caption">
-      <i class="fas fa-circle-info"></i>
-      Every probe shown is from the <strong>held-out test split</strong> &mdash; no
-      channel of it was seen in training. The ground-truth strip is the
-      Zhuang-ABCA MERFISH atlas value for that channel, which is static; the
-      prediction is recomputed independently for each 3&nbsp;s window, so the
-      per-window scatter you see is the honest spread of a single-window estimate.
-      Genes are ranked in the dropdown by accuracy on the selected probe.
-    </p>
+
+    <!-- ---- pane: single probe ---- -->
+    <div class="explorer-pane is-hidden" data-tab="probe">
+      <p class="content is-medium has-text-centered">
+        The atlas view works in atlas space; this one works in
+        <strong>recording space</strong>. Pick one insertion and follow it down
+        through the brain, with the gene expression predicted from its LFP for
+        <strong>every 3&nbsp;second window</strong> beside it. Hover a cell to light
+        up that same channel on the depth key, on the ground truth, and on the probe
+        track in the section.
+      </p>
+
+      <p class="has-text-centered mb-4">
+        <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
+           href="assets/interactive/explorer_probe.html" target="_blank" rel="noopener">
+          <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
+          <span>Open full-screen</span>
+        </a>
+      </p>
+
+      <!-- src is set on first reveal (see the tab script): a hidden iframe would
+           otherwise fetch a ~1.6 MB probe payload nobody has asked to see -->
+      <div class="explorer-embed">
+        <iframe id="probe-iframe" data-src="assets/interactive/explorer_probe.html"
+                title="Lfp2Gene probe explorer" loading="lazy"></iframe>
+      </div>
+      <p class="caption">
+        <i class="fas fa-circle-info"></i>
+        Every probe is from the <strong>held-out test split</strong> &mdash; no channel
+        of it was seen in training. The ground-truth strip is the Zhuang-ABCA MERFISH
+        value for that channel, which is static; the prediction is recomputed
+        independently for each 3&nbsp;s window, so the per-window scatter is the honest
+        spread of a single-window estimate. Genes are ranked by accuracy on the
+        selected probe.
+      </p>
+    </div>
   </div>
 </section>
 
@@ -321,14 +336,53 @@
     });
   })();
 
-  // resize the explorer iframe to its content height so it never scrolls internally
+  // resize an explorer iframe to its content height so it never scrolls
+  // internally. Resolve WHICH iframe sent the message rather than assuming the
+  // atlas one -- there are two explorers now, and hardcoding the id silently
+  // resized the wrong frame.
   window.addEventListener('message', function(e){
     var d = e.data;
-    if(d && d.type === 'explorerHeight' && d.height){
-      var f = document.getElementById('explorer-iframe');
-      if(f){ f.style.height = (d.height + 24) + 'px'; }
+    if(!(d && d.type === 'explorerHeight' && d.height)){ return; }
+    var frames = document.querySelectorAll('.explorer-embed iframe');
+    for(var i = 0; i < frames.length; i++){
+      if(frames[i].contentWindow === e.source){
+        frames[i].style.height = (d.height + 24) + 'px';
+        return;
+      }
     }
   });
+
+  // explorer tabs: one section, two panes
+  (function(){
+    var tabs = document.getElementById('explorer-tabs');
+    if(!tabs){ return; }
+    var items = tabs.querySelectorAll('li[data-tab]');
+    var panes = document.querySelectorAll('.explorer-pane[data-tab]');
+    function show(name){
+      for(var i = 0; i < items.length; i++){
+        items[i].classList.toggle('is-active', items[i].dataset.tab === name);
+      }
+      for(var j = 0; j < panes.length; j++){
+        var on = panes[j].dataset.tab === name;
+        panes[j].classList.toggle('is-hidden', !on);
+        if(on){
+          // load on first reveal: a hidden iframe would otherwise pull a probe
+          // payload nobody has asked to see
+          var f = panes[j].querySelector('iframe[data-src]');
+          if(f && !f.src){ f.src = f.dataset.src; }
+        }
+      }
+      try{ history.replaceState(null, '', '#explorer'); }catch(e){}
+    }
+    for(var k = 0; k < items.length; k++){
+      items[k].addEventListener('click', function(ev){
+        ev.preventDefault();
+        show(this.dataset.tab);
+      });
+    }
+    // deep link: #explorer-probe opens the probe pane directly
+    if(location.hash === '#explorer-probe'){ show('probe'); }
+  })();
 
   // scroll-spy: highlight the TOC link for whichever section is in view
   (function(){
