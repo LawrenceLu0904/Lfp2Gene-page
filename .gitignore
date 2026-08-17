@@ -3,5 +3,7 @@
 # PNG rasters that do not delta-compress, so committing it would grow .git
 # permanently on every re-export.
 probes-payload.tar.gz
-assets/interactive/data/probes/
+# no trailing slash: that form matches only real directories, and a symlink
+# to the payload (handy for local preview) would slip through as untracked
+assets/interactive/data/probes
 upload_payload.sh
