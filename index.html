@@ -60,6 +60,7 @@
     <a href="#results">Results</a>
     <a href="#ceiling">Ceiling</a>
     <a href="#explorer">Explorer</a>
+    <a href="#probes">Probes</a>
     <a href="#bibtex">Cite</a>
   </div>
 </nav>
@@ -239,6 +240,43 @@
       3D brain (grey = whole brain · colored = evaluable regions / probe coverage) +
       3 obs-vs-pred scatters + 4 reconstruction heatmaps, all linked. Data is fetched
       per cube-size on demand; slimmed for fast loading. Best on a wide screen.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ PROBE EXPLORER ============================ -->
+<section class="section" id="probes">
+  <div class="container is-max-widescreen">
+    <h2 class="title is-3 has-text-centered">Along a single probe</h2>
+    <p class="content is-medium has-text-centered">
+      The explorer above works in atlas space. This one works in
+      <strong>recording space</strong>: pick one Neuropixels insertion and follow
+      it down through the brain, with the gene expression predicted from its LFP
+      for <strong>every 3&nbsp;second window</strong> beside it. Hover a cell to
+      light up the same channel on the depth key, on the ground truth, and on the
+      probe track in the section.
+    </p>
+
+    <p class="has-text-centered mb-4">
+      <a class="button is-medium is-rounded" style="background:#882255;color:#fff"
+         href="assets/interactive/explorer_probe.html" target="_blank" rel="noopener">
+        <span class="icon"><i class="fas fa-up-right-from-square"></i></span>
+        <span>Open the probe explorer full-screen</span>
+      </a>
+    </p>
+
+    <div class="explorer-embed">
+      <iframe id="probe-iframe" src="assets/interactive/explorer_probe.html"
+              title="Lfp2Gene probe explorer" loading="lazy"></iframe>
+    </div>
+    <p class="caption">
+      <i class="fas fa-circle-info"></i>
+      Every probe shown is from the <strong>held-out test split</strong> &mdash; no
+      channel of it was seen in training. The ground-truth strip is the
+      Zhuang-ABCA MERFISH atlas value for that channel, which is static; the
+      prediction is recomputed independently for each 3&nbsp;s window, so the
+      per-window scatter you see is the honest spread of a single-window estimate.
+      Genes are ranked in the dropdown by accuracy on the selected probe.
     </p>
   </div>
 </section>

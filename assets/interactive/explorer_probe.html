@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lfp2Gene · probe explorer</title>
+<!--
+  Interactive twin of the paper figure (lab/2026-08-11_gene_channels_time/
+  fig_insertion_path.py): pick a probe, pick a gene, see the insertion path in
+  the brain next to the predicted expression for every 3 s window.
+
+  Same conventions as the figure, deliberately:
+    * depth -> PLASMA, expression -> VIRIDIS (two ramps, never confused)
+    * deep channels at the BOTTOM of every panel, matching the coronal section
+    * expression z-scored per panel, clipped to +/- 2.2
+
+  What the figure cannot do, and the reason this exists: hovering a single
+  (channel, window) cell lights up the SAME channel on the depth key, on the GT
+  strip and on the probe track in the brain. The static figure has to spend
+  region labels to carry that linkage; here the reader can just point at it.
+
+  No external libraries and no CDN: the LUTs below are the real matplotlib
+  colormaps, sampled at build time, so the web panel and the PDF figure use
+  identical colours.
+
+  Data: data/probes/index.json -> data/probes/<pid8>/{meta.json,slice.png,pred.png}
+  pred.png stacks every gene: gene k is rows [k*n_ch, (k+1)*n_ch). One fetch per
+  probe (~1.6 MB), so switching gene is instant and costs no network at all.
+  See lab/2026-08-11_gene_channels_time/export_site_probes.py.
+-->
+<style>
+:root{
+  --bg:#ffffff; --panel:#ffffff; --ink:#1A1A1E; --muted:#6B6B72;
+  --line:#E4E4E8; --accent:#882255;
+}
+[data-theme="dark"]{
+  --bg:#14141a; --panel:#1b1b22; --ink:#ECECF0; --muted:#9A9AA4;
+  --line:#2C2C36; --accent:#C4577F;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;}
+#wrap{padding:14px 16px 18px}
+.bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:12px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+select{font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--line);
+  border-radius:7px;background:var(--panel);color:var(--ink);min-width:220px}
+select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.spacer{flex:1}
+.stat{font-size:12.5px;color:var(--muted);line-height:1.55;text-align:right}
+.stat b{color:var(--ink);font-weight:600}
+#grid{display:grid;grid-template-columns:auto 26px 20px minmax(240px,1fr);
+  gap:0 10px;align-items:start}
+.colhead{font-size:11px;color:var(--muted);height:17px;line-height:17px;
+  white-space:nowrap;overflow:hidden}
+canvas{display:block;border-radius:4px}
+#brain{background:#000;border-radius:6px}
+#predwrap{width:100%}
+#pred{cursor:crosshair;width:100%}
+#readout{margin-top:9px;font-size:12.5px;color:var(--muted);min-height:19px;
+  font-variant-numeric:tabular-nums}
+#readout b{color:var(--ink);font-weight:600}
+#msg{padding:26px 0;color:var(--muted);font-size:13px}
+.cap{margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.65;max-width:1150px}
+.swatch{display:inline-block;width:52px;height:9px;border-radius:2px;
+  vertical-align:middle;margin:0 5px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="bar">
+    <div class="fld">
+      <label for="probe">Probe (held-out test split, strongest first)</label>
+      <select id="probe"></select>
+    </div>
+    <div class="fld">
+      <label for="gene">Gene (ranked by accuracy on this probe)</label>
+      <select id="gene"></select>
+    </div>
+    <div class="spacer"></div>
+    <div class="stat" id="stat"></div>
+  </div>
+
+  <div id="msg">Loading…</div>
+
+  <div id="grid" style="display:none">
+    <div class="colhead" id="h-brain"></div>
+    <div class="colhead">depth</div>
+    <div class="colhead">GT</div>
+    <div class="colhead" id="h-pred"></div>
+    <canvas id="brain"></canvas>
+    <canvas id="key"></canvas>
+    <canvas id="gt"></canvas>
+    <div id="predwrap"><canvas id="pred"></canvas></div>
+  </div>
+
+  <div id="readout">Hover the prediction to read one channel and window.</div>
+
+  <p class="cap">
+    Left: the insertion path on the Allen coronal section nearest the probe, each
+    channel coloured by depth<span class="swatch" id="sw-depth"></span>.
+    Right: predicted expression for every 3 s window, with the ground-truth
+    (Zhuang-ABCA MERFISH) value per channel in the strip beside it, both on
+    <span class="swatch" id="sw-expr"></span>. Deep channels at the bottom
+    throughout; expression is z-scored within each panel, so the panels compare
+    <em>spatial pattern</em> — the prediction sits at a different absolute level
+    than the atlas, and that calibration gap is reported as r, not hidden.
+  </p>
+</div>
+
+<script>
+"use strict";
+
+/* matplotlib viridis / plasma, 256 RGB triples, base64. Sampled from the same
+   colormaps the paper figure uses so the two match exactly. */
+const LUT_VIRIDIS = "RAFURAJWRQRXRQVZRgdaRghcRgpdRgteRw1gRw5hRxBjRxFkRxNlSBRnSBZoSBdpSBhqSBpsSBttSBxuSB1vSB9wSCBxSCFzSCN0SCR1SCV2SCZ3SCh4SCl5Ryp6Ryx6Ry17Ry58Ry99RjB+RjJ+RjN/RjSARTWBRTeBRTiCRDmDRDqDRDuEQz2EQz6FQj+FQkCGQkGGQUKHQUSHQEWIQEaIP0eIP0iJPkmJPkqJPkyKPU2KPU6KPE+KPFCLO1GLO1KLOlOLOlSMOVWMOVaMOFiMOFmMN1qMN1uNNlyNNl2NNV6NNV+NNGCNNGGNM2KNM2ONMmSOMmWOMWaOMWeOMWiOMGmOMGqOL2uOL2yOLm2OLm6OLm+OLXCOLXGOLHGOLHKOLHOOK3SOK3WOKnaOKneOKniOKXmOKXqOKXuOKHyOKH2OJ36OJ3+OJ4COJoGOJoKOJoKOJYOOJYSOJYWOJIaOJIeOI4iOI4mOI4qNIouNIoyNIo2NIY6NIY+NIZCNIZGMIJKMIJKMIJOMH5SMH5WLH5aLH5eLH5iLH5mKH5qKHpuKHpyJHp2JH56JH5+IH6CIH6GIH6GHH6KHIKOGIKSGIaWFIaaFIqeFIqiEI6mDJKqDJauCJayCJq2BJ62BKK6AKa9/KrB/LLF+LbJ9LrN8L7R8MbV7MrZ6NLZ5Nbd5N7h4OLl3Orp2O7t1Pbx0P7xzQL1yQr5xRL9wRsBvSMFuSsFtTMJsTsNrUMRqUsVpVMVoVsZnWMdlWshkXMhjXsliYMpgY8tfZcteZ8xcac1bbM1abs5YcM9Xc9BWddBUd9FTetFRfNJQf9NOgdNNhNRLhtVJidVIi9ZGjtZFkNdDk9dBldhAmNg+m9k8ndk7oNo5oto3pds2qNs0qtwyrdwwsN0vst0ttd4ruN4put4ovd8mwN8lwt8jxeAhyOAgyuEfzeEd0OEc0uIb1eIa2OIZ2uMZ3eMY3+MY4uQY5eQZ5+QZ6uUa7OUb7+Uc8eUd9OYe9uYg+OYh++cj/ecl";
+const LUT_PLASMA  = "DQiHEAeIEweJFgeKGQaMGwaNHQaOIAaPIgaQJAaRJgWRKAWSKgWTLAWULgWVLwWWMQWXMwWXNQSYNwSZOASaOgSaPASbPgScPwScQQSdQwOeRAOeRgOfSAOfSQOgSwOhTAKhTgKiUAKiUQKjUwKjVQKkVgGkWAGkWQGlWwGlXAGmXgGmYAGmYQCnYwCnZACnZgCnZwCoaQCoagCobACobgCobwCocQCocgGodAGodQGodwGoeAGoegKoewKofQOofgOogASogQSngwWnhAWnhgamhwemiAimigmliwqljQuljgykjw2kkQ6jkg+jlBCilRGhlhOhmBSgmRWfmhafnBeenRidnhmdoBqcoRuboh2aox6apR+ZpiCYpyGXqCKWqiOVqySUrCaUrSeTriiSsCmRsSqQsiuPsyyOtC6NtS+MtjCLtzGKuDKJujOIuzSIvDWHvTeGvjiFvzmEwDqDwTuCwjyBwz2AxD5/xUB+xkF9x0J8yEN7yUR6ykV6y0Z5zEd4zEl3zUp2zkt1z0x00E1z0U5y0k9x01Fx1FJw1VNv1VRu1lVt11Zs2Fdr2Vhq2lpq2ltp21xo3F1n3V5m3l9l3mFk32Jj4GNj4WRi4mVh4mZg42hf5Gle5Wpd5Wtd5mxc525b529a6HBZ6XFY6XJX6nRX63VW63ZV7HdU7XlT7XpS7ntR73xR735Q8H9P8IBO8YFN8YNM8oRL84VL84dK9IhJ9IlI9YtH9YxG9o1F9o9E95BE95FD95NC+JRB+JVA+Zc/+Zg++Zo++ps9+pw8+p47+586+6E5+6I4/KM4/KU3/KY2/Kg1/Kk0/asz/awz/a4y/a8x/bEw/bIv/bQv/bUu/rct/rgs/ros/rsr/r0q/r4q/sAp/cIp/cMo/cUn/cYn/cgn/com/csm/M0l/M4l/NAl/NIl+9Mk+9Uk+9ck+tgk+tok+dwk+d0l+N8l+OEl9+Il9+Ql9uYm9ugm9ekm9esn9O0n8+4n8/An8vIn8fQm8fUl8Pck8Pkh";
+
+function decodeLut(b64){
+  const bin = atob(b64), out = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++){ out[i] = bin.charCodeAt(i); }
+  return out;                                    // 768 bytes = 256 x RGB
+}
+const VIRIDIS = decodeLut(LUT_VIRIDIS);
+const PLASMA  = decodeLut(LUT_PLASMA);
+
+const DATA = "data/probes";
+const ZLO = -2.2, ZHI = 2.2;
+const H = 470;                  // panel height in CSS px, shared by all columns
+const BRAIN_MAX_W = 420;
+const KEY_W = 26, GT_W = 20;
+
+const el = function(id){ return document.getElementById(id); };
+
+const S = {
+  meta:null, geneIdx:0,
+  brainImg:null, predImg:null,
+  brainBase:null,               // offscreen: brain + track + labels, display size
+  predBase:null,                // offscreen: recoloured prediction, NATIVE size
+  keyBase:null, gtBase:null,    // offscreen strips, 1 px per row
+  predGray:null,                // native grayscale, for the hover readout
+  brainScale:1, brainW:0, brainH:0,
+  predW:0, rowH:1, dvLo:0, dvHi:1,
+  hoverRow:-1, hoverCol:-1
+};
+
+/* ---------- helpers ------------------------------------------------------ */
+
+function ramp(lut, t){
+  let i = Math.round(t * 255);
+  if(i < 0){ i = 0; }
+  if(i > 255){ i = 255; }
+  return "rgb(" + lut[i*3] + "," + lut[i*3+1] + "," + lut[i*3+2] + ")";
+}
+
+function zstats(arr){
+  let n = 0, s = 0, s2 = 0;
+  for(let i = 0; i < arr.length; i++){
+    const v = arr[i];
+    if(Number.isFinite(v)){ n++; s += v; s2 += v*v; }
+  }
+  if(n === 0){ return {mu:0, sd:1}; }
+  const mu = s / n;
+  let sd = Math.sqrt(Math.max(s2/n - mu*mu, 0));
+  if(!(sd > 1e-9)){ sd = 1; }
+  return {mu:mu, sd:sd};
+}
+
+/* Size a canvas for devicePixelRatio so hairlines and text stay crisp at 2x. */
+function sizeCanvas(cv, w, h){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(w*dpr));
+  cv.height = Math.max(1, Math.round(h*dpr));
+  cv.style.width = w + "px";
+  cv.style.height = h + "px";
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+function offscreen(w, h){
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(w));
+  c.height = Math.max(1, Math.round(h));
+  return c;
+}
+
+function depthT(dv){
+  const span = Math.max(S.dvHi - S.dvLo, 1);
+  let t = (dv - S.dvLo) / span;
+  if(t < 0){ t = 0; }
+  if(t > 1){ t = 1; }
+  return t;
+}
+
+/* ---------- build the cached layers -------------------------------------- */
+
+/* Region labels are thinned in the space they are DRAWN in. The brain's y axis
+   is the slice image scaled by S.brainScale; the key's y axis is H/n_ch per
+   row. Those are different mappings, so thinning in one and drawing in the
+   other lets labels collide anyway. Everything below works in brain pixels. */
+function buildBrain(){
+  const m = S.meta;
+  S.brainScale = Math.min(BRAIN_MAX_W / m.slice_w, H / m.slice_h);
+  S.brainW = Math.round(m.slice_w * S.brainScale);
+  S.brainH = Math.round(m.slice_h * S.brainScale);
+
+  const c = offscreen(S.brainW, S.brainH);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, S.brainW, S.brainH);
+  ctx.drawImage(S.brainImg, 0, 0, S.brainW, S.brainH);
+
+  const tx = [], ty = [];
+  for(let i = 0; i < m.track_x.length; i++){
+    tx.push(m.track_x[i] * S.brainScale);
+    ty.push(m.track_y[i] * S.brainScale);
+  }
+
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let i = 0; i < tx.length; i++){
+    if(i === 0){ ctx.moveTo(tx[i], ty[i]); } else { ctx.lineTo(tx[i], ty[i]); }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  for(let i = 0; i < tx.length; i++){
+    ctx.fillStyle = ramp(PLASMA, depthT(m.track_dv[i]));
+    ctx.beginPath();
+    ctx.arc(tx[i], ty[i], 2.3, 0, 6.2832);
+    ctx.fill();
+  }
+
+  // candidate labels, each already positioned in brain pixels
+  const cand = [];
+  for(let i = 0; i < m.runs.length; i++){
+    const r = m.runs[i];
+    if(r[1] - r[0] < 4){ continue; }
+    const row = Math.round((r[0] + r[1]) / 2);
+    const dv = m.dv_um[Math.min(row, m.dv_um.length - 1)];
+    let j = 0, best = Infinity;
+    for(let q = 0; q < m.track_dv.length; q++){
+      const d = Math.abs(m.track_dv[q] - dv);
+      if(d < best){ best = d; j = q; }
+    }
+    cand.push({size:r[1] - r[0], row:row, ri:r[2], y:ty[j], x:tx[j]});
+  }
+  // largest region wins each collision, exactly as fig_insertion_path.py does
+  cand.sort(function(a, b){ return b.size - a.size; });
+  const kept = [];
+  for(let i = 0; i < cand.length; i++){
+    let ok = true;
+    for(let k = 0; k < kept.length; k++){
+      if(Math.abs(cand[i].y - kept[k].y) < 13){ ok = false; break; }
+    }
+    if(ok){ kept.push(cand[i]); }
+  }
+  kept.sort(function(a, b){ return a.y - b.y; });
+
+  ctx.font = "11px -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+  ctx.textBaseline = "middle";
+  for(let i = 0; i < kept.length; i++){
+    const L = kept[i];
+    const text = m.regions[L.ri] + "  ch" + m.channel_id[L.row];
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(7, L.y);
+    ctx.lineTo(L.x - 4, L.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, 7, L.y);
+  }
+  S.brainBase = c;
+  // Every channel is projected onto the MEDIAN-AP plane. Most tracks sit within
+  // a section's thickness, but an oblique one can travel ~450 um in AP, and
+  // then part of the track genuinely is not in the slice being drawn. Say so
+  // rather than letting the picture imply otherwise.
+  let head = "coronal section at AP " + m.ap_um.toFixed(0) + " µm";
+  if(m.ap_span_um > 150){
+    head += "   (track spans " + m.ap_span_um.toFixed(0) + " µm in AP; projected)";
+  }
+  el("h-brain").textContent = head;
+}
+
+/* Strips are built ONE PIXEL PER CHANNEL and stretched on draw. Filling
+   rectangles of height H/n_ch (often ~1.2 px) leaves seams or overdraws. */
+function buildStrip(values, lut, zscored){
+  const n = values.length;
+  const c = offscreen(1, n);
+  const ctx = c.getContext("2d");
+  const im = ctx.createImageData(1, n);
+  const st = zscored ? zstats(values) : null;
+  for(let r = 0; r < n; r++){
+    let t;
+    if(zscored){
+      t = (((values[r] - st.mu) / st.sd) - ZLO) / (ZHI - ZLO);
+    }else{
+      t = depthT(values[r]);
+    }
+    if(t < 0){ t = 0; }
+    if(t > 1){ t = 1; }
+    const i = Math.round(t * 255);
+    const o = r * 4;
+    im.data[o]   = lut[i*3];
+    im.data[o+1] = lut[i*3+1];
+    im.data[o+2] = lut[i*3+2];
+    im.data[o+3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+
+/* Recolour the grayscale prediction at NATIVE resolution, then scale once.
+   Recolouring after scaling would interpolate along the ramp and invent values
+   that are not in the data. */
+function buildPred(){
+  const m = S.meta;
+  const c = offscreen(m.n_win, m.n_ch);
+  const ctx = c.getContext("2d");
+  ctx.drawImage(S.predImg, 0, S.geneIdx * m.n_ch, m.n_win, m.n_ch,
+                           0, 0, m.n_win, m.n_ch);
+  const im = ctx.getImageData(0, 0, m.n_win, m.n_ch);
+  const px = im.data;
+  const n = m.n_win * m.n_ch;
+  S.predGray = new Uint8Array(n);
+  for(let i = 0; i < n; i++){
+    const v = px[i*4];
+    S.predGray[i] = v;
+    px[i*4]   = VIRIDIS[v*3];
+    px[i*4+1] = VIRIDIS[v*3+1];
+    px[i*4+2] = VIRIDIS[v*3+2];
+    px[i*4+3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  S.predBase = c;
+}
+
+/* ---------- paint (cheap; safe to call on every mousemove) ---------------- */
+
+function paint(){
+  const m = S.meta;
+  if(!m){ return; }
+  S.rowH = H / m.n_ch;
+
+  const bctx = sizeCanvas(el("brain"), S.brainW, S.brainH);
+  bctx.drawImage(S.brainBase, 0, 0);
+  if(S.hoverRow >= 0){
+    // ring the hovered channel on the track, so a cell in the heatmap can be
+    // pointed at a physical place in the brain
+    const dv = m.dv_um[S.hoverRow];
+    let j = 0, best = Infinity;
+    for(let q = 0; q < m.track_dv.length; q++){
+      const d = Math.abs(m.track_dv[q] - dv);
+      if(d < best){ best = d; j = q; }
+    }
+    bctx.strokeStyle = "#fff";
+    bctx.lineWidth = 2;
+    bctx.beginPath();
+    bctx.arc(m.track_x[j]*S.brainScale, m.track_y[j]*S.brainScale, 6, 0, 6.2832);
+    bctx.stroke();
+  }
+
+  const kctx = sizeCanvas(el("key"), KEY_W, H);
+  kctx.imageSmoothingEnabled = false;
+  kctx.drawImage(S.keyBase, 0, 0, 1, m.n_ch, 0, 0, KEY_W, H);
+
+  const gctx = sizeCanvas(el("gt"), GT_W, H);
+  gctx.imageSmoothingEnabled = false;
+  gctx.drawImage(S.gtBase, 0, 0, 1, m.n_ch, 0, 0, GT_W, H);
+
+  const pctx = sizeCanvas(el("pred"), S.predW, H);
+  pctx.imageSmoothingEnabled = false;
+  pctx.drawImage(S.predBase, 0, 0, m.n_win, m.n_ch, 0, 0, S.predW, H);
+
+  if(S.hoverRow >= 0){
+    const y = (S.hoverRow + 0.5) * S.rowH;
+    const x = (S.hoverCol + 0.5) * (S.predW / m.n_win);
+    pctx.strokeStyle = "rgba(255,255,255,0.75)";
+    pctx.lineWidth = 1;
+    pctx.beginPath(); pctx.moveTo(0, y); pctx.lineTo(S.predW, y); pctx.stroke();
+    pctx.beginPath(); pctx.moveTo(x, 0); pctx.lineTo(x, H); pctx.stroke();
+    // the same row on both strips: this is the linkage, made literal
+    kctx.strokeStyle = "#fff"; kctx.lineWidth = 1.5;
+    kctx.beginPath(); kctx.moveTo(0, y); kctx.lineTo(KEY_W, y); kctx.stroke();
+    gctx.strokeStyle = "#fff"; gctx.lineWidth = 1.5;
+    gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(GT_W, y); gctx.stroke();
+  }
+}
+
+function layout(){
+  if(!S.meta){ return; }
+  // measure the CELL, not the canvas: the canvas is width:100% of #predwrap, so
+  // reading its own width would feed back into the grid track sizing
+  const w = el("predwrap").clientWidth;
+  S.predW = Math.max(240, Math.round(w));
+  paint();
+}
+
+/* ---------- hover -------------------------------------------------------- */
+
+function onHover(ev){
+  const m = S.meta;
+  if(!m || !S.predGray){ return; }
+  const rect = el("pred").getBoundingClientRect();
+  const fx = (ev.clientX - rect.left) / rect.width;
+  const fy = (ev.clientY - rect.top) / rect.height;
+  if(fx < 0 || fx > 1 || fy < 0 || fy > 1){ return; }
+  S.hoverCol = Math.min(m.n_win - 1, Math.max(0, Math.floor(fx * m.n_win)));
+  S.hoverRow = Math.min(m.n_ch - 1,  Math.max(0, Math.floor(fy * m.n_ch)));
+
+  let acr = "?";
+  for(let i = 0; i < m.runs.length; i++){
+    if(S.hoverRow >= m.runs[i][0] && S.hoverRow < m.runs[i][1]){
+      acr = m.regions[m.runs[i][2]];
+      break;
+    }
+  }
+  const u = S.predGray[S.hoverRow * m.n_win + S.hoverCol];
+  const zp = ZLO + (u / 255) * (ZHI - ZLO);
+  const gt = m.gt[S.geneIdx][S.hoverRow];
+  const tsec = m.t_start_s + m.chunk_s * m.widx[S.hoverCol];
+
+  el("readout").innerHTML =
+    "<b>ch" + m.channel_id[S.hoverRow] + "</b> · " + acr +
+    " · depth <b>" + m.dv_um[S.hoverRow].toFixed(0) + " µm</b>" +
+    " · window <b>" + S.hoverCol + "</b> (t = " + tsec.toFixed(0) + " s)" +
+    " · " + m.genes[S.geneIdx] +
+    " GT <b>" + gt.toFixed(2) + "</b>" +
+    " · predicted <b>" + (zp >= 0 ? "+" : "") + zp.toFixed(2) + " z</b>";
+  paint();
+}
+
+function clearHover(){
+  S.hoverRow = -1;
+  S.hoverCol = -1;
+  el("readout").textContent = "Hover the prediction to read one channel and window.";
+  paint();
+}
+
+/* ---------- loading ------------------------------------------------------ */
+
+function loadImage(src){
+  return new Promise(function(res, rej){
+    const im = new Image();
+    im.onload = function(){ res(im); };
+    im.onerror = function(){ rej(new Error("could not load " + src)); };
+    im.src = src;
+  });
+}
+
+function selectGene(k){
+  const m = S.meta;
+  S.geneIdx = k;
+  buildPred();
+  S.gtBase = buildStrip(m.gt[k], VIRIDIS, true);
+  const r = m.r[k];
+  el("stat").innerHTML =
+    "<b>" + m.probe_label + "</b> · " + m.n_ch + " channels · " +
+    m.regions.length + " regions · AP " + m.ap_um.toFixed(0) + " µm<br>" +
+    m.genes[k] + ": per-channel accuracy <b>r = " +
+    (r === null || r === undefined ? "n/a" : r.toFixed(2)) + "</b> (held out)";
+  el("h-pred").textContent =
+    m.genes[k] + " — predicted every " + m.chunk_s + " s  ·  " +
+    m.n_win + " windows × " + m.n_ch + " channels";
+  layout();
+}
+
+async function loadProbe(label){
+  el("msg").style.display = "block";
+  el("msg").textContent = "Loading " + label + "…";
+  el("grid").style.display = "none";
+
+  const resp = await fetch(DATA + "/" + label + "/meta.json");
+  if(!resp.ok){ throw new Error("meta.json " + resp.status); }
+  const m = await resp.json();
+  S.meta = m;
+
+  const imgs = await Promise.all([
+    loadImage(DATA + "/" + label + "/slice.png"),
+    loadImage(DATA + "/" + label + "/pred.png")
+  ]);
+  S.brainImg = imgs[0];
+  S.predImg  = imgs[1];
+
+  let lo = Infinity, hi = -Infinity;
+  for(let i = 0; i < m.dv_um.length; i++){
+    if(m.dv_um[i] < lo){ lo = m.dv_um[i]; }
+    if(m.dv_um[i] > hi){ hi = m.dv_um[i]; }
+  }
+  S.dvLo = lo;
+  S.dvHi = hi;
+  S.rowH = H / m.n_ch;
+  S.hoverRow = -1;
+  S.hoverCol = -1;
+
+  buildBrain();
+  S.keyBase = buildStrip(m.dv_um, PLASMA, false);
+
+  // With 35 genes the useful question on a new probe is "what does this probe
+  // predict well", not the alphabet -- so rank the dropdown by r.
+  const gsel = el("gene");
+  const prev = gsel.value;
+  const ordered = [];
+  for(let i = 0; i < m.genes.length; i++){
+    ordered.push({g:m.genes[i], i:i, r:m.r[i]});
+  }
+  ordered.sort(function(a, b){
+    const ra = (a.r === null || a.r === undefined) ? -2 : a.r;
+    const rb = (b.r === null || b.r === undefined) ? -2 : b.r;
+    return rb - ra;
+  });
+  gsel.innerHTML = "";
+  for(let i = 0; i < ordered.length; i++){
+    const o = ordered[i];
+    const opt = document.createElement("option");
+    opt.value = String(o.i);
+    opt.textContent = o.g + "   (r = " +
+      (o.r === null || o.r === undefined ? "n/a" : o.r.toFixed(2)) + ")";
+    gsel.appendChild(opt);
+  }
+  let want = String(ordered[0].i);
+  for(let i = 0; i < ordered.length; i++){
+    if(String(ordered[i].i) === prev){ want = prev; break; }
+  }
+  gsel.value = want;
+
+  el("msg").style.display = "none";
+  el("grid").style.display = "grid";
+  selectGene(parseInt(gsel.value, 10));
+}
+
+function buildSwatch(id, lut){
+  const c = offscreen(52, 9);
+  const ctx = c.getContext("2d");
+  for(let x = 0; x < 52; x++){
+    ctx.fillStyle = ramp(lut, x/51);
+    ctx.fillRect(x, 0, 1, 9);
+  }
+  el(id).style.background = "url(" + c.toDataURL() + ") center/100% 100% no-repeat";
+}
+
+async function boot(){
+  buildSwatch("sw-depth", PLASMA);
+  buildSwatch("sw-expr", VIRIDIS);
+
+  // the parent page stores its light/dark choice here; same origin, so the
+  // iframe can simply read it and listen for later toggles
+  try{
+    const t = localStorage.getItem("lfp2gene-theme");
+    if(t){ document.documentElement.setAttribute("data-theme", t); }
+  }catch(e){ /* storage blocked: light is the default */ }
+  window.addEventListener("storage", function(ev){
+    if(ev.key === "lfp2gene-theme" && ev.newValue){
+      document.documentElement.setAttribute("data-theme", ev.newValue);
+    }
+  });
+
+  let idx;
+  try{
+    const r = await fetch(DATA + "/index.json");
+    if(!r.ok){ throw new Error(String(r.status)); }
+    idx = await r.json();
+  }catch(e){
+    el("msg").textContent =
+      "Could not load " + DATA + "/index.json (" + e.message + ") — the probe " +
+      "payloads have not been exported yet.";
+    return;
+  }
+
+  const psel = el("probe");
+  // Order by best-gene accuracy, not by pid: an alphabetical list of hex
+  // strings tells a reader nothing, and it makes the landing probe arbitrary.
+  // Every probe is still listed and every r is shown, so this is a default,
+  // not a filter.
+  idx.probes.sort(function(a, b){
+    const ra = (a.best_r === null || a.best_r === undefined) ? -2 : a.best_r;
+    const rb = (b.best_r === null || b.best_r === undefined) ? -2 : b.best_r;
+    if(rb !== ra){ return rb - ra; }
+    return a.probe_label.localeCompare(b.probe_label);
+  });
+  for(let i = 0; i < idx.probes.length; i++){
+    const p = idx.probes[i];
+    const opt = document.createElement("option");
+    opt.value = p.probe_label;
+    opt.textContent = p.probe_label + "   ·  " + p.n_regions +
+                      " regions  ·  AP " + p.ap_um.toFixed(0) + " µm  ·  best r = " +
+                      (p.best_r === null || p.best_r === undefined
+                        ? "n/a" : p.best_r.toFixed(2));
+    psel.appendChild(opt);
+  }
+
+  psel.addEventListener("change", function(){
+    loadProbe(psel.value).catch(function(e){
+      el("msg").style.display = "block";
+      el("msg").textContent = "Failed to load " + psel.value + ": " + e.message;
+    });
+  });
+  el("gene").addEventListener("change", function(e){
+    selectGene(parseInt(e.target.value, 10));
+  });
+  el("pred").addEventListener("mousemove", onHover);
+  el("pred").addEventListener("mouseleave", clearHover);
+
+  let rt = null;
+  window.addEventListener("resize", function(){
+    clearTimeout(rt);
+    rt = setTimeout(layout, 120);
+  });
+
+  try{
+    await loadProbe(psel.value);
+  }catch(e){
+    el("msg").style.display = "block";
+    el("msg").textContent = "Failed to load " + psel.value + ": " + e.message;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
